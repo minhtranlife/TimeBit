@@ -26,6 +26,8 @@ input string                        InpTimeStart                        = "01:00
 input string                        InpTimeStop                         = "23:30:00";       // Timestop
 input int                           Inp_Blance_Percent_Stop                     = 20;               //Blance Stop (%) 
 
+input string                        InpVolumes                          = "0.01, 0.02, 0.04, 0.08, 0.16, 0.32, 0.64, 1.28";
+
 input ushort                        Inp_Range_CD                        = 70;               //Range CD min (pips)
 
 input int                           Inp_ZZ_m5_zz_depth                     = 12;                //ZigZag M5 Depth
@@ -60,14 +62,27 @@ double                              M5_ZZ_ABCD[4];
 datetime                            M5_ZZ_ABCD_DateTime[4];
 double                              M1_ZZ_CD[2];
 datetime                            M1_ZZ_CD_DateTime[2];
+string                              m5_trend;
+string                              Order_type;
+string                              volumes_string_array[];
+
+int                                 MaxPosition                      = 0;
+
 //+------------------------------------------------------------------+
 //| Expert initialization function                                   |
 //+------------------------------------------------------------------+
 int OnInit()
-  {
-//---  
-   if(!m_symbol.Name(Symbol()))  // sets symbol name
-      return (INIT_FAILED);   
+  { 
+   
+//--- 
+   if(!ConvertVolume()){
+      Print("Stop! Input Volume false!");
+      return(INIT_FAILED);
+   }   
+   if(!m_symbol.Name(Symbol())){  // sets symbol name
+      Print("Get Symbol name false!");
+      return (INIT_FAILED);
+   }   
       
    if(!InitZigZagM5()){
       Print("InitM5ZZ false!");
@@ -77,6 +92,7 @@ int OnInit()
       Print("InitM1ZZ false!");
       return (INIT_FAILED);
    }
+   
    SetAdjustedPoint();
    
    return(INIT_SUCCEEDED);
@@ -107,6 +123,14 @@ void OnTick()
                Print("Check range M5 ok");
                if(CheckM5FiboCondition(M5_ZZ_ABCD[3], M5_ZZ_ABCD[2], M5_ZZ_ABCD[1])){
                   Print("Check M5 Fibo ok");
+                  if(CheckM1Reverse(M1_ZZ_CD[1], M1_ZZ_CD[0], m5_trend)){
+                     Print("Check M1 Reverse ok! Ready for trade!", Order_type);
+                     
+                     
+                  }else{
+                     Print("Check M1 Reverse false");
+                  }
+                  
                   //
                }else{
                   ObjectDelete( 0, "FIBOAB");
@@ -130,6 +154,7 @@ void OnTick()
 //+------------------------------------------------------------------+
 
 
+   
 bool InitZigZagM5() {
    handle_ZZ_M5  = iCustom(m_symbol.Name(),PERIOD_M5,"Examples/ZigZag",Inp_ZZ_m5_zz_depth, Inp_ZZ_m5_zz_deviation, Inp_ZZ_m5_zz_backStep);
    if(handle_ZZ_M5 != NULL){
@@ -159,6 +184,12 @@ bool SetM5ZZABCD(int handle, double & ABCD[], datetime & ABCD_DateTime[]){
                Zcount_M5++;               
             }
          }
+      }
+      if(ABCD[3] > ABCD[1] && ABCD[2] > ABCD[0]){
+         m5_trend = "DOWN";
+      }
+      if(ABCD[3] < ABCD[1] && ABCD[2] < ABCD[0]){
+         m5_trend = "UP";
       }
       
       return true;
@@ -485,6 +516,45 @@ double GetPriceFibo(double m5zza, double m5zzb, double percent){
    return price;
 }
 
+bool CheckM1Reverse(double m1zzc, double m1zzd, string trend){
+   if(trend == "UP"){
+      if( m1zzc > m1zzd){
+         Order_type = "SELL";
+         return (true);
+      }
+   }
+   if(trend == "DOWN"){
+      if( m1zzc < m1zzd){
+         Order_type = "BUY";
+         return (true);
+      }
+   }   
+   return (false);
+}
+
+
+bool ConvertVolume(){
+   string to_split= InpVolumes;
+   StringReplace(to_split," ","");
+   string sep=",";                // A separator as a character
+   ushort u_sep;                  // The code of the separator character
+   Print("String", to_split);
+   //--- Get the separator code
+   u_sep=StringGetCharacter(sep,0);
+   //--- Split the string to substrings
+   //Print("Befor Split");
+   MaxPosition = StringSplit(to_split,u_sep,volumes_string_array);
+   /*Print("After Split");
+   Print("Max position= ", MaxPosition);
+   for(int i =0; i < MaxPosition; i++){
+      Print("Str = ", volumes_string_array[i]);
+   }*/
+   if(MaxPosition >0){
+      return (true);
+   }
+ 
+   return false;
+}
 
 void SetAdjustedPoint(){
    int digits_adjust = 1;
@@ -492,3 +562,4 @@ void SetAdjustedPoint(){
       digits_adjust = 10;
    m_adjusted_point = m_symbol.Point() * digits_adjust;   
 }
+
